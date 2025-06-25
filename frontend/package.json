@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+     "test": "echo \"Run dummy test success\"",
     "build": "vite build",
-    "preview": "vite preview",
-    "test": "echo \"Run dummy test success\""
+    "preview": "vite preview"
   },
   "dependencies": {
     "vue": "^3.5.17"
