@@ -1,0 +1,70 @@
+name: CI/CD Full Pipeline
+
+on:
+  push:
+    branches:
+      - lam
+      - tuan
+      - dev
+      - master
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+
+    - name: Install Dependencies
+      run: |
+        cd backend
+        npm install
+        cd ../frontend
+        npm install
+
+    - name: Run Backend Tests
+      run: |
+        cd backend
+        npm test || exit 1
+
+    - name: Run Frontend Tests
+      run: |
+        cd frontend
+        npm test || exit 1
+
+    - name: Build Backend & Frontend
+      run: |
+        cd backend
+        npm run build
+        cd ../frontend
+        npm run build
+
+    - name: Deploy (Staging or Production)
+      run: |
+        echo "Deploying..."
+        echo "Branch: ${{ github.ref_name }}"
+        # Bạn thêm lệnh deploy thực tế tại đây, ví dụ ssh, docker, scp...
+
+    - name: Auto Create PR to dev
+      if: ${{ github.ref_name == 'lam' || github.ref_name == 'tuan' }}
+      uses: peter-evans/create-pull-request@v5
+      with:
+        base: dev
+        title: 'Auto PR from ${{ github.ref_name }} to dev'
+        body: 'Automated PR from ${{ github.ref_name }} to dev'
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Auto Create PR to master
+      if: ${{ github.ref_name == 'dev' }}
+      uses: peter-evans/create-pull-request@v5
+      with:
+        base: master
+        title: 'Auto PR from dev to master'
+        body: 'Automated PR from dev to master'
+        token: ${{ secrets.GITHUB_TOKEN }}
