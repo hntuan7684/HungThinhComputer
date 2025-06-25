@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "echo \"Dummy test passed\""
+    "test": "echo \"Run dummy test success\""
   },
   "dependencies": {
     "vue": "^3.5.17"
