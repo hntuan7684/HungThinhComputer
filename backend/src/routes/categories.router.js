@@ -15,5 +15,6 @@ router.delete("/delete/:slug", categoriesController.deleteCategory);
 
 router.delete("/delete-all", categoriesController.deleteAllCategory);
 
+router.delete("/delete-soft/:slug", categoriesController.deleteSoftCategories);
 
 module.exports = router;

@@ -13,8 +13,11 @@ router.post('/upload', uploadSingleOptional('uploads/brand'), brandController.cr
 
 router.put('/update/:slug', uploadSingleOptional('uploads/brand'), brandController.updateBrand);
 
-router.delete('/delete/:slug', brandController.deleteBrand);
+router.delete('/hard-delete/:slug', brandController.deletehardBrand);
 
-router.delete('/delete-all', brandController.deleteAllBrand)
+router.delete('/hard-delete-all', brandController.deleteAllBrand)
+
+router.delete("/soft-delete/:slug", brandController.deleteSoftBrand);
+
 
 module.exports = router;

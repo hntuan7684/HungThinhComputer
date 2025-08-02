@@ -7,7 +7,8 @@ const brandSchema = mongoose.Schema({
         public_id: { type: String },
         url: { type: String }
     },
-    description: { type: String}
+    description: { type: String},
+    isActive: { type: Boolean, default: true}
 },{ timestamps: true });
 
 module.exports = mongoose.model('Brand', brandSchema);

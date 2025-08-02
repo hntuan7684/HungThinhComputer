@@ -1,4 +1,7 @@
 const brandService = require("../services/brand.service.js");
+const productService = require("../services/product.service");
+
+
 const cloudinary = require("../config/cloudinary");
 
 exports.getBrands = async (req, res) => {
@@ -7,7 +10,7 @@ exports.getBrands = async (req, res) => {
     if (!brands || brands.length === 0) {
       return res.status(404).json({ message: "No Brands found!" });
     }
-    return res.json(brands);
+    return res.status(200).json(brands);
   } catch (error) {
     console.error("Error while fetching brands:", error.message);
     return res.status(500).json({ message: "Internal server error!" });
@@ -109,39 +112,144 @@ exports.updateBrand = async (req, res) => {
 };
 
 
-exports.deleteBrand = async (req, res) => {
-    try {
-        const { slug } = req.params;
-        const brand = await brandService.getBrandBySlug(slug);
+exports.deletehardBrand = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const brand = await brandService.getBrandBySlug(slug);
 
-        if (!brand) {
-            return res.status(404).json({ message: "Brand not found" });
-        }
-
-        // Nếu Brand có ảnh → Xóa ảnh trên Cloudinary
-        if (brand.logo && brand.logo.public_id) {
-            await cloudinary.uploader.destroy(brand.logo.public_id);
-        }
-
-        // Xóa Brand trong DB
-        const deleted = await brandService.deleteBrand(brand.id);
-        if (!deleted) {
-            return res.status(500).json({ message: "Could not delete Brand" });
-        }
-
-        return res.status(200).json({ message: "Brand deleted successfully" });
-    } catch (error) {
-        console.error("Error while deleting Brand:", error.message);
-        return res.status(500).json({ message: "Internal server error" });
+    if (!brand) {
+      return res.status(404).json({ message: "Brand not found" });
     }
+
+    // Xóa toàn bộ sản phẩm liên quan
+    const products = await Product.find({ brand: brand._id });
+
+    for (const product of products) {
+      // Xóa ảnh đại diện sản phẩm nếu có
+      if (product.thumbnail && product.thumbnail.public_id) {
+        await cloudinary.uploader.destroy(product.thumbnail.public_id);
+      }
+
+      // Xóa từng ảnh của các Variant nếu có
+      for (const variant of product.variants) {
+        if (variant.images && Array.isArray(variant.images)) {
+          for (const img of variant.images) {
+            if (img.public_id) {
+              await cloudinary.uploader.destroy(img.public_id);
+            }
+          }
+        }
+      }
+
+      await productService.deleteProduct(product.id);
+    }
+
+    // Xóa ảnh logo Brand nếu có
+    if (brand.logo && brand.logo.public_id) {
+      await cloudinary.uploader.destroy(brand.logo.public_id);
+    }
+
+    // Xóa Brand
+    const deleted = await brandService.deleteBrand(brand.id);
+    if (!deleted) {
+      return res.status(500).json({ message: "Could not delete Brand" });
+    }
+
+    return res.status(200).json({
+      message: `Brand and ${products.length} products hard deleted successfully`
+    });
+  } catch (error) {
+    console.error("Error while hard deleting Brand and Products:", error.message);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 };
 
-exports.deleteAllBrand = async (req, res) => {
-    try {
-        await brandService.deleteAllBrand();
-        return res.status(200).json({ message: "All brands deleted successfully" });
-    } catch (error) {
-        console.error("Error while deleting all brands:", error.message);
-        return res.status(500).json({ message: "Internal server error" });
+exports.deleteSoftBrand = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const brand = await brandService.getBrandBySlug(slug);
+
+    if (!brand) {
+      return res.status(404).json({ message: "Brand not found" });
     }
+
+    const result = await productService.filterProducts({ brandId: brand._id }) || {};
+    const products = result.products || [];
+
+    if (!Array.isArray(products)) {
+      console.error("Expected array of products but got:", products);
+      return res.status(500).json({ message: "Product data is invalid format!" });
+    }
+
+    await Promise.all(
+      products.map(product =>
+        productService.updateProduct(product.id, { isActive: false })
+      )
+    );
+
+    brand.isActive = false;
+    await brand.save();
+
+    return res.status(200).json({
+      message: `Soft delete brand and ${products.length} products successfully!`,
+      brand
+    });
+
+  } catch (error) {
+    console.error("Error while soft deleting Brands and Products:", error.message);
+    return res.status(500).json("Internal server error!");
+  }
+};
+
+
+
+exports.deleteAllBrand = async (req, res) => {
+  try {
+    const brands = await Brand.find();
+
+    let totalDeletedBrands = 0;
+    let totalDeletedProducts = 0;
+
+    for (const brand of brands) {
+      // Tìm toàn bộ sản phẩm thuộc brand
+      const products = await Product.find({ brand: brand._id });
+
+      // Xóa từng sản phẩm và ảnh liên quan
+      for (const product of products) {
+        if (product.thumbnail && product.thumbnail.public_id) {
+          await cloudinary.uploader.destroy(product.thumbnail.public_id);
+        }
+
+        for (const variant of product.variants) {
+          if (variant.images && Array.isArray(variant.images)) {
+            for (const img of variant.images) {
+              if (img.public_id) {
+                await cloudinary.uploader.destroy(img.public_id);
+              }
+            }
+          }
+        }
+
+        await productService.deleteProduct(product.id);
+        totalDeletedProducts++;
+      }
+
+      // Xóa ảnh logo Brand nếu có
+      if (brand.logo && brand.logo.public_id) {
+        await cloudinary.uploader.destroy(brand.logo.public_id);
+      }
+
+      await brandService.deleteBrand(brand.id);
+      totalDeletedBrands++;
+    }
+
+    return res.status(200).json({
+      message: "All brands and related products deleted successfully",
+      totalDeletedBrands,
+      totalDeletedProducts
+    });
+  } catch (error) {
+    console.error("Error while deleting all brands:", error.message);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 };
